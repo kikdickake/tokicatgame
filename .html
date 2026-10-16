@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>SQL Кот: Магазин цен</title>
+    <style>
+        body {
+            background-color: #fff0f5; /* Нежно-розовый фон под эстетику */
+            font-family: 'Arial', sans-serif;
+            color: #4a4a4a;
+            text-align: center;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(255, 182, 193, 0.4);
+            border: 3px solid #ffb6c1;
+        }
+        .cat-avatar {
+            font-size: 80px;
+            margin-bottom: 10px;
+        }
+        h1 {
+            color: #d87093;
+            font-size: 24px;
+        }
+        .table-box {
+            background: #fff8dc;
+            border: 2px dashed #deb887;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            text-align: left;
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 8px;
+            border-bottom: 1px solid #ddd;
+            text-align: center;
+        }
+        th {
+            background-color: #ffdab9;
+            color: #8b4513;
+        }
+        textarea {
+            width: 100%;
+            height: 80px;
+            padding: 10px;
+            border: 2px solid #ffb6c1;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 14px;
+            resize: none;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #ff69b4;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            margin-top: 15px;
+            box-shadow: 0 4px 10px rgba(255, 105, 180, 0.3);
+            transition: 0.2s;
+        }
+        button:hover {
+            background-color: #ff1493;
+        }
+        #message {
+            margin-top: 15px;
+            font-weight: bold;
+            font-size: 16px;
+        }
+        .success { color: #2e8b57; }
+        .error { color: #db7093; }
+        .task-description {
+            background: #f0f8ff;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-size: 14px;
+            border-left: 4px solid #87ceeb;
+            text-align: left;
+        }
+        #progress {
+            color: #8b4513;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="cat-avatar" id="catFace">🐱</div>
+    <h1 id="gameTitle">Мур-мяу! Помоги котику с ценами!</h1>
+    
+    <div class="task-description" id="taskText"></div>
+    <div id="progress"></div>
+
+    <!-- Визуализация таблицы базы данных прямо на сайте -->
+    <div class="table-box">
+        <strong>Таблица: products</strong>
+        <table>
+            <thead>
+                <tr>
+                    <th>id</th>
+                    <th>product_name</th>
+                    <th>price</th>
+                </tr>
+            </thead>
+            <tbody id="dbTableBody"></tbody>
+        </table>
+    </div>
+
+    <!-- Поле для ввода SQL-кода -->
+    <textarea id="sqlInput" placeholder="Введи SQL запрос здесь... (например, UPDATE products SET ...)"></textarea>
+    <br>
+    <button id="runButton" onclick="checkSql()">Выполнить запрос 🚀</button>
+    <button id="moreButton" onclick="startRound()" style="display: none;">Дать котику ещё заданий 🐾</button>
+
+    <div id="message"></div>
+</div>
+
+<script>
+    const originalProducts = [
+        { id: 1, name: "Рыбка", price: 1200 },
+        { id: 2, name: "Молочко", price: 450 },
+        { id: 3, name: "Мышка игрушечная", price: 300 },
+        { id: 4, name: "Корм сухой", price: 890 },
+        { id: 5, name: "Корм влажный", price: 120 },
+        { id: 6, name: "Когтеточка", price: 1500 },
+        { id: 7, name: "Мячик", price: 250 },
+        { id: 8, name: "Лежанка", price: 2200 },
+        { id: 9, name: "Ошейник", price: 600 },
+        { id: 10, name: "Переноска", price: 3100 },
+        { id: 11, name: "Миска", price: 400 },
+        { id: 12, name: "Лакомство", price: 180 },
+        { id: 13, name: "Щётка", price: 520 },
+        { id: 14, name: "Шампунь", price: 700 },
+        { id: 15, name: "Колокольчик", price: 150 },
+        { id: 16, name: "Плед", price: 1300 },
+        { id: 17, name: "Домик", price: 2800 },
+        { id: 18, name: "Тоннель", price: 990 },
+        { id: 19, name: "Перо на палочке", price: 220 },
+        { id: 20, name: "Фонтанчик для воды", price: 2400 }
+    ];
+    let products = originalProducts.map(product => ({ ...product }));
+    const tasksPerRound = 20;
+    let taskNumber = 0;
+    let roundNumber = 0;
+    let currentTask = null;
+
+    function renderTable() {
+        document.getElementById("dbTableBody").innerHTML = products.map(product => `
+            <tr>
+                <td>${product.id}</td>
+                <td>${product.name}</td>
+                <td>${product.price}</td>
+            </tr>
+        `).join("");
+    }
+
+    function startRound() {
+        roundNumber += 1;
+        taskNumber = 0;
+        products = originalProducts.map(product => ({ ...product }));
+        renderTable();
+        document.getElementById("moreButton").style.display = "none";
+        document.getElementById("runButton").style.display = "inline-block";
+        document.getElementById("sqlInput").style.display = "block";
+        document.getElementById("sqlInput").value = "";
+        document.getElementById("message").innerHTML = "";
+        document.getElementById("gameTitle").innerText = `SQL Котик: серия ${roundNumber}`;
+        document.getElementById("catFace").innerText = "🐱";
+        nextTask();
+    }
+
+    function nextTask() {
+        if (taskNumber >= tasksPerRound) {
+            finishRound();
+            return;
+        }
+        document.getElementById("runButton").disabled = false;
+
+        const product = products[Math.floor(Math.random() * products.length)];
+        const taskTypes = products.length > 1 ? ["update", "delete", "select"] : ["update", "select"];
+        const type = taskTypes[Math.floor(Math.random() * taskTypes.length)];
+        currentTask = { type, product };
+
+        if (type === "update") {
+            let newPrice;
+            do {
+                newPrice = (Math.floor(Math.random() * 50) + 1) * 50;
+            } while (newPrice === product.price);
+            currentTask.newPrice = newPrice;
+            document.getElementById("taskText").innerHTML =
+                `<b>Задание ${taskNumber + 1}:</b> Котик хочет изменить цену товара <b>«${product.name}»</b> (id = ${product.id}) на <b>${newPrice}</b>. Используй <code>UPDATE</code>.`;
+        } else if (type === "delete") {
+            document.getElementById("taskText").innerHTML =
+                `<b>Задание ${taskNumber + 1}:</b> Удали товар <b>«${product.name}»</b> (id = ${product.id}) из таблицы с помощью <code>DELETE</code>.`;
+        } else {
+            document.getElementById("taskText").innerHTML =
+                `<b>Задание ${taskNumber + 1}:</b> Найди товар <b>«${product.name}»</b> (id = ${product.id}) командой <code>SELECT</code>.`;
+        }
+
+        document.getElementById("progress").innerText =
+            `Серия ${roundNumber} · задание ${taskNumber + 1} из ${tasksPerRound}`;
+    }
+
+    function checkSql() {
+        const input = document.getElementById("sqlInput").value.trim().replace(/;\s*$/, "");
+        const message = document.getElementById("message");
+        const catFace = document.getElementById("catFace");
+        const { type, product } = currentTask;
+        let expectedPattern;
+
+        if (type === "update") {
+            expectedPattern = new RegExp(
+                `^update\\s+products\\s+set\\s+price\\s*=\\s*${currentTask.newPrice}\\s+where\\s+id\\s*=\\s*${product.id}$`, "i"
+            );
+        } else if (type === "delete") {
+            expectedPattern = new RegExp(
+                `^delete\\s+from\\s+products\\s+where\\s+id\\s*=\\s*${product.id}$`, "i"
+            );
+        } else {
+            expectedPattern = new RegExp(
+                `^select\\s+(?:\\*|product_name\\s*,\\s*price)\\s+from\\s+products\\s+where\\s+id\\s*=\\s*${product.id}$`, "i"
+            );
+        }
+
+        if (!expectedPattern.test(input)) {
+            message.innerText = type === "update"
+                ? "Мрр... Проверь UPDATE, новую цену и условие WHERE."
+                : type === "delete"
+                    ? "Мрр... Проверь DELETE и условие WHERE."
+                    : "Мрр... Напиши SELECT * FROM products WHERE id = нужный_id.";
+            message.className = "error";
+            catFace.innerText = "😿";
+            return;
+        }
+
+        if (type === "update") {
+            product.price = currentTask.newPrice;
+            message.innerText = "Цена обновлена! Котик довольно мурчит 😺";
+        } else if (type === "delete") {
+            products.splice(products.indexOf(product), 1);
+            message.innerText = "Товар удалён! Котик доволен 🐾";
+        } else {
+            message.innerText = `Нашёл: ${product.name}, цена ${product.price}. Котик доволен! 😺`;
+        }
+
+        message.className = "success";
+        catFace.innerText = "😺💖";
+        renderTable();
+        taskNumber += 1;
+        document.getElementById("runButton").disabled = true;
+        document.getElementById("sqlInput").value = "";
+        setTimeout(nextTask, 1200);
+    }
+
+    function finishRound() {
+        currentTask = null;
+        document.getElementById("taskText").innerHTML =
+            `<b>Все ${tasksPerRound} заданий выполнены!</b> Котик просит ещё заданий. Хочешь продолжить?`;
+        document.getElementById("progress").innerText = `Серия ${roundNumber} завершена!`;
+        document.getElementById("catFace").innerText = "😻";
+        document.getElementById("message").innerText = "Мяу! Дай мне ещё заданий!";
+        document.getElementById("message").className = "success";
+        document.getElementById("runButton").style.display = "none";
+        document.getElementById("sqlInput").style.display = "none";
+        document.getElementById("moreButton").style.display = "inline-block";
+    }
+
+    renderTable();
+    startRound();
+</script>
+
+</body>
+</html>
